@@ -17,9 +17,8 @@ Pilha *inicializarPilha();
 
 Pilha *inicializarPilha() {
     Pilha *p = (Pilha *)malloc(sizeof(Pilha));
-    if (p == NULL)
-    {
-        printf("ERRO: não foi possível alocar memória para a pilha!\n");
+    if (!p) {
+        printf("Erro ao alocar pilha.\n");
         exit(1);
     }
     p->topo = -1;
@@ -30,7 +29,7 @@ int pilhaVazia(Pilha *p) {
     return p->topo == -1;
 }
 
-void empilha(Pilha *p, char *str) {
+void empilha(Pilha *p, const char *str) {
     if (p->topo < MAX - 1) {
         p->itens[++p->topo] = strdup(str);
     } else {
@@ -60,7 +59,7 @@ void liberarPilha(Pilha *p) {
     free(p);
 }
 
-
+// Funções manuais
 int Digito(char c) {
     return c >= '0' && c <= '9';
 }
@@ -177,27 +176,28 @@ char *getFormaInFixa(char *Str) {
 // Conversão Infixa → Pós-fixa
 char *getFormaPosFixa(char *StrInfixa) {
     Pilha *pilhaOperadores = inicializarPilha();
-    char *resultado = (char *)malloc(MAX_StrInFixa);
+    char *resultado = (char *)malloc(MAX_StrInFixa * 2); // Aumentar um pouco o buffer para os espaços
     resultado[0] = '\0';
 
-    char strCopia[MAX_StrInFixa];
-    strcpy(strCopia, StrInfixa);
-
-    char *token = strtok(strCopia, " ");
+    char stringPreparada[MAX_StrInFixa * 2] = "";
+    for (int i = 0; StrInfixa[i] != '\0'; i++) {
+        if (strchr("+-*/%^()", StrInfixa[i])) {
+            strcat(stringPreparada, " ");
+            strncat(stringPreparada, &StrInfixa[i], 1);
+            strcat(stringPreparada, " ");
+        } else {
+            strncat(stringPreparada, &StrInfixa[i], 1);
+        }
+    }
+    char *token = strtok(stringPreparada, " ");
 
     while (token != NULL) {
-        // Número (operando)
-        if (Digito(token[0]) || (token[0] == '.' && Digito(token[1])) || 
-            (token[0] == '-' && Digito(token[1]))) {
+        if (Digito(token[0]) || (token[0] == '.' && Digito(token[1]))) {
             strcat(resultado, token);
             strcat(resultado, " ");
-        }
-        // Função unária (log, sen, etc.) → empilhada
-        else if (OperadorUnario(token)) {
+        } else if (OperadorUnario(token)) {
             empilha(pilhaOperadores, token);
-        }
-        // Operador binário
-        else if (OperadorBinario(token)) {
+        } else if (OperadorBinario(token)) {
             while (!pilhaVazia(pilhaOperadores) && strcmp(topoPilha(pilhaOperadores), "(") != 0 &&
                    prioridade(topoPilha(pilhaOperadores)) >= prioridade(token)) {
                 char *op = desempilha(pilhaOperadores);
@@ -206,38 +206,28 @@ char *getFormaPosFixa(char *StrInfixa) {
                 free(op);
             }
             empilha(pilhaOperadores, token);
-        }
-        // Parêntese esquerdo
-        else if (strcmp(token, "(") == 0) {
+        } else if (strcmp(token, "(") == 0) {
             empilha(pilhaOperadores, token);
-        }
-        // Parêntese direito
-        else if (strcmp(token, ")") == 0) {
+        } else if (strcmp(token, ")") == 0) {
             while (!pilhaVazia(pilhaOperadores) && strcmp(topoPilha(pilhaOperadores), "(") != 0) {
                 char *op = desempilha(pilhaOperadores);
                 strcat(resultado, op);
                 strcat(resultado, " ");
                 free(op);
             }
-
-            // Descarta o "("
             if (!pilhaVazia(pilhaOperadores)) {
-                free(desempilha(pilhaOperadores));
+                free(desempilha(pilhaOperadores)); // remove "("
             }
-
-            // Se o topo agora for uma função unária, ela deve vir após a subexpressão
             if (!pilhaVazia(pilhaOperadores) && OperadorUnario(topoPilha(pilhaOperadores))) {
-                char *func = desempilha(pilhaOperadores);
-                strcat(resultado, func);
+                char *op = desempilha(pilhaOperadores);
+                strcat(resultado, op);
                 strcat(resultado, " ");
-                free(func);
+                free(op);
             }
         }
-
         token = strtok(NULL, " ");
     }
 
-    // Desempilha o restante dos operadores
     while (!pilhaVazia(pilhaOperadores)) {
         char *op = desempilha(pilhaOperadores);
         strcat(resultado, op);
@@ -247,10 +237,8 @@ char *getFormaPosFixa(char *StrInfixa) {
 
     liberarPilha(pilhaOperadores);
 
-    // Remove espaço extra ao final
-    int len = strlen(resultado);
-    if (len > 0 && resultado[len - 1] == ' ') {
-        resultado[len - 1] = '\0';
+    if (strlen(resultado) > 0) {
+        resultado[strlen(resultado) - 1] = '\0';
     }
 
     return resultado;
@@ -286,19 +274,13 @@ float getValorPosFixa(char *strPosFixa) {
 // Avaliação Infixa (interna chama a Pós-fixa)
 float getValorInFixa(char *StrInFixa) {
     char expressaoComEspacos[MAX_StrInFixa * 2] = "";
-    for (int i = 0; StrInFixa[i] != '\0'; i++)
-    {
-        char c = StrInFixa[i];
-        if (c == '(' || c == ')' || c == '+' || c == '-' || c == '*' ||
-            c == '/' || c == '%' || c == '^')
-        {
+    for (int i = 0; StrInFixa[i] != '\0'; i++) {
+        if (StrInFixa[i] == '(' || StrInFixa[i] == ')') {
             strcat(expressaoComEspacos, " ");
-            strncat(expressaoComEspacos, &c, 1);
+            strncat(expressaoComEspacos, &StrInFixa[i], 1);
             strcat(expressaoComEspacos, " ");
-        }
-        else
-        {
-            strncat(expressaoComEspacos, &c, 1);
+        } else {
+            strncat(expressaoComEspacos, &StrInFixa[i], 1);
         }
     }
 
